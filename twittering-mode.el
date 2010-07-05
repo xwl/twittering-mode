@@ -502,37 +502,9 @@ on authorization via OAuth.")
 	      (format (if (eq spec-type 'search)
 			  "atom"
 			"xml"))
-	      (simple-spec-list
-	       '((direct_messages      . "1/direct_messages")
-		 (direct_messages_sent . "1/direct_messages/sent")
-              
-		 (friends         . "1/statuses/friends_timeline")
-		 (home            . "1/statuses/home_timeline")
-		 (mentions        . "1/statuses/mentions")
-		 (public          . "1/statuses/public_timeline")
-		 (replies         . "1/statuses/replies")
-		 (retweeted_by_me . "1/statuses/retweeted_by_me")
-		 (retweeted_to_me . "1/statuses/retweeted_to_me")
-		 (retweets_of_me  . "1/statuses/retweets_of_me")
-
-		 (following       . "1/statuses/friends")
-		 (followers       . "1/statuses/followers")
-
-		 (search . "search")))
 	      (host (cond ((eq spec-type 'search) twittering-api-search-host)
 			  (t twittering-api-host)))
-	      (method
-	       (cond
-		((eq spec-type 'user)
-		 (let ((username (elt spec 1)))
-		   (concat "1/statuses/user_timeline/" username)))
-		((eq spec-type 'list)
-		 (let ((username (elt spec 1))
-		       (list-name (elt spec 2)))
-		   (concat "1/" username "/lists/" list-name "/statuses")))
-		((assq spec-type simple-spec-list)
-		 (cdr (assq spec-type simple-spec-list)))
-		(t nil))))
+	      (method (twittering-spec-to-method spec)))
 	 (if (and host method)
 	     (twittering-http-get host method noninteractive parameters format)
 	   (error "Invalid timeline spec"))))
@@ -2605,7 +2577,7 @@ Return nil if SPEC-STR is invalid as a timeline spec."
 `primary' means that the spec is not a composite timeline spec such as
 `filter' and `merge'."
   (let ((primary-spec-types
-	 '(user list
+	 '(user list merge
 		direct_messages direct_messages_sent
 		friends home mentions public replies
 		search
@@ -2655,6 +2627,38 @@ is specified in `twittering-timeline-most-active-spec-strings'."
 	(add-to-history 'twittering-timeline-history spec-string)
       (setq twittering-timeline-history
 	    (cons spec-string twittering-timeline-history)))))
+
+(defun twittering-spec-to-method (spec)
+  "Get API method(or path) for SPEC."
+  (let ((simple-spec-list
+	 '((direct_messages      . "1/direct_messages")
+	   (direct_messages_sent . "1/direct_messages/sent")
+              
+	   (friends         . "1/statuses/friends_timeline")
+	   (home            . "1/statuses/home_timeline")
+	   (mentions        . "1/statuses/mentions")
+	   (public          . "1/statuses/public_timeline")
+	   (replies         . "1/statuses/replies")
+	   (retweeted_by_me . "1/statuses/retweeted_by_me")
+	   (retweeted_to_me . "1/statuses/retweeted_to_me")
+	   (retweets_of_me  . "1/statuses/retweets_of_me")
+
+	   (following       . "1/statuses/friends")
+	   (followers       . "1/statuses/followers")
+
+	   (search . "search"))))
+    (case (car spec)
+      ((user)
+       (let ((username (elt spec 1)))
+	 (concat "1/statuses/user_timeline/" username)))
+      ((list)
+       (let ((username (elt spec 1))
+	     (list-name (elt spec 2)))
+	 (concat "1/" username "/lists/" list-name "/statuses")))
+      ((merge)
+       (mapcar 'twittering-spec-to-method (cdr spec)))
+      (t 
+       (cdr (assq (car spec) simple-spec-list))))))
 
 ;;;
 ;;; Timeline info
@@ -4502,14 +4506,27 @@ PATH      : http request path
 PARAMETERS: http request parameters (query string)"
   (unless (member method '("POST" "GET"))
     (error "Unknown HTTP method: %s" method))
-  (unless (string-match "^/" path)
+  ;; TODO: convert 'merge path
+  (unless (string-match "^/" (if (stringp path) 
+				 path (car path)))
     (error "Invalid HTTP path: %s" path))
 
-  (unless (assoc "Host" headers)
-    (setq headers (cons `("Host" . ,host) headers)))
-  (unless (assoc "User-Agent" headers)
-    (setq headers (cons `("User-Agent" . ,(twittering-user-agent))
-			headers)))
+  (if (stringp path)
+      (progn
+	(unless (assoc "Host" headers)
+	  (setq headers (cons `("Host" . ,host) headers)))
+	(unless (assoc "User-Agent" headers)
+	  (setq headers (cons `("User-Agent" . ,(twittering-user-agent))
+			      headers))))
+    (setq headers
+	  (mapcar (lambda (h)
+		    (unless (assoc "Host" h)
+		      (setq h (cons `("Host" . ,host) h)))
+		    (unless (assoc "User-Agent" h)
+		      (setq h (cons `("User-Agent" . ,(twittering-user-agent))
+				    h)))
+		    h)
+		  headers)))
 
   (let ((func (twittering-lookup-http-start-function
 	       twittering-connection-type-order
@@ -4559,9 +4576,16 @@ Z70Br83gcfxaz2TE4JaY0KNA4gGK7ycH8WUBikQtBmV1UsCGECAhX2xrD2yuCRyv
   (let* ((request (twittering-make-http-request
 		   method headers host port path parameters))
 	 (temp-buffer (generate-new-buffer "*twmode-http-buffer*"))
-	 (headers (if (assoc "Expect" headers)
-		      headers
-		    (cons '("Expect" . "") headers)))
+	 (headers 
+	  (if (stringp path)
+	      (if (assoc "Expect" headers)
+		  headers
+		(cons '("Expect" . "") headers))
+	    (mapcar (lambda (h)
+		      (if (assoc "Expect" h)
+			  h
+			(cons '("Expect" . "") h)))
+		    headers)))
 	 (cacert-fullpath (when twittering-use-ssl
 			    (twittering-ensure-ca-cert)))
 	 (cacert-dir (when cacert-fullpath
@@ -4580,59 +4604,72 @@ Z70Br83gcfxaz2TE4JaY0KNA4gGK7ycH8WUBikQtBmV1UsCGECAhX2xrD2yuCRyv
 	       cacert-dir
 	     default-directory))
 	 (curl-args
-	  `("--include" "--silent"
-	    ,@(mapcan (lambda (pair)
-			;; Do not overwrite internal headers `curl' would use.
-			;; Thanks to William Xu.
-			;; "cURL - How To Use"
-			;; http://curl.haxx.se/docs/manpage.html
-			(unless (string= (car pair) "Host")
-			  `("-H" ,(format "%s: %s" (car pair) (cdr pair)))))
-		      headers)
-	    ,@(when twittering-use-ssl
-		`("--cacert" ,cacert-filename))
-	    ,@(when (and twittering-use-ssl
-			 twittering-allow-insecure-server-cert)
-		`("--insecure"))
-	    ,@(when twittering-proxy-use
-		(let* ((scheme (funcall request :schema))
-		       (host (twittering-proxy-info scheme 'server))
-		       (port (twittering-proxy-info scheme 'port)))
-		  (when (and host port)
-		    `("-x" ,(format "%s:%s" host port)))))
-	    ,@(when twittering-proxy-use
-		(let ((pair
-		       (cdr (assoc
-			     (funcall request :schema)
-			     `(("http" .
-				(,twittering-http-proxy-user
-				 . ,twittering-http-proxy-password))
-			       ("https" .
-				(,twittering-https-proxy-user
-				 . ,twittering-https-proxy-password)))))))
-		  (when (and pair (car pair) (cdr pair))
-		    `("-U" ,(format "%s:%s" (car pair) (cdr pair))))))
-	    ,@(when (string= "POST" method)
-		(mapcan (lambda (pair)
-			  (list
-			   "-d"
-			   (format "%s=%s"
-				   (twittering-percent-encode (car pair))
-				   (twittering-percent-encode (cdr pair)))))
-			parameters))
-	    ,(concat (funcall request :uri)
-		     (when parameters
-		       (concat "?" (funcall request :query-string))))))
+	  (mapcar* 
+	   (lambda (headers uri)
+	     `("--include" "--silent"
+	       ,@(mapcan (lambda (pair)
+			   ;; Do not overwrite internal headers `curl' would use.
+			   ;; Thanks to William Xu.
+			   ;; "cURL - How To Use"
+			   ;; http://curl.haxx.se/docs/manpage.html
+			   (unless (string= (car pair) "Host")
+			     `("-H" ,(format "%s: %s" (car pair) (cdr pair)))))
+			 headers)
+	       ,@(when twittering-use-ssl
+		   `("--cacert" ,cacert-filename))
+	       ,@(when (and twittering-use-ssl
+			    twittering-allow-insecure-server-cert)
+		   `("--insecure"))
+	       ,@(when twittering-proxy-use
+		   (let* ((scheme (funcall request :schema))
+			  (host (twittering-proxy-info scheme 'server))
+			  (port (twittering-proxy-info scheme 'port)))
+		     (when (and host port)
+		       `("-x" ,(format "%s:%s" host port)))))
+	       ,@(when twittering-proxy-use
+		   (let ((pair
+			  (cdr (assoc
+				(funcall request :schema)
+				`(("http" .
+				   (,twittering-http-proxy-user
+				    . ,twittering-http-proxy-password))
+				  ("https" .
+				   (,twittering-https-proxy-user
+				    . ,twittering-https-proxy-password)))))))
+		     (when (and pair (car pair) (cdr pair))
+		       `("-U" ,(format "%s:%s" (car pair) (cdr pair))))))
+	       ,@(when (string= "POST" method)
+		   (mapcan (lambda (pair)
+			     (list
+			      "-d"
+			      (format "%s=%s"
+				      (twittering-percent-encode (car pair))
+				      (twittering-percent-encode (cdr pair)))))
+			   parameters))
+	       ,(let ((para (when parameters
+			      (concat "?" (funcall request :query-string)))))
+		  (concat uri para))))
+	   (if (stringp path) (list headers) headers)
+	   (if (stringp path) (list (funcall request :uri)) (funcall request :uri))))
+
 	 (coding-system-for-read 'utf-8-unix))
     (debug-print curl-args)
     (lexical-let ((noninteractive noninteractive)
 		  (sentinel sentinel))
       (let ((curl-process
-	     (apply 'start-process
-		    "*twmode-curl*"
-		    temp-buffer
-		    twittering-curl-program
-		    curl-args)))
+	     (funcall 'start-process-shell-command
+		      "*twmode-curl*"
+		      temp-buffer
+		      (concat 		; double quote for w32
+		       (if (and (eq system-type 'windows-nt) (cdr curl-args)) "\"" "")
+		       (mapconcat 'identity 
+				  (mapcar (lambda (args)
+					    (mapconcat 'shell-quote-argument 
+						       (cons twittering-curl-program args) " "))
+					  curl-args)
+				  " && ")
+		       (if (and (eq system-type 'windows-nt) (cdr curl-args)) "\"" "")))))
+	;; (switch-to-buffer temp-buffer)
 	(when curl-process
 	  (set-process-sentinel
 	   curl-process
@@ -4746,15 +4783,19 @@ Available keywords:
 	  (mapconcat (lambda (pair)
 		       (format "%s: %s" (car pair) (cdr pair)))
 		     headers "\r\n"))
-	 (uri (format "%s://%s%s%s"
-		      schema
-		      host
-		      (if port
-			  (if (equal port default-port)
-			      ""
-			    (format ":%s" port))
-			"")
-		      path))
+	 (uri-formatter (lambda (p)
+			  (format "%s://%s%s%s"
+				  schema
+				  host
+				  (if port
+				      (if (equal port default-port)
+					  ""
+					(format ":%s" port))
+				    "")
+				  p)))
+	 (uri (if (stringp path) 
+		  (funcall uri-formatter path)
+		(mapcar uri-formatter path)))
 	 (query-string
 	  (mapconcat (lambda (pair)
 		       (format
@@ -4762,8 +4803,7 @@ Available keywords:
 			(twittering-percent-encode (car pair))
 			(twittering-percent-encode (cdr pair))))
 		     parameters
-		     "&"))
-	 )
+		     "&")))
     (lexical-let ((data `((:method . ,method)
 			  (:host . ,host)
 			  (:port . ,port)
@@ -4871,11 +4911,22 @@ QUERY-PARAMETERS is a list of cons pair of name and value such as
 	 (scheme (if twittering-use-ssl
 		     "https"
 		   "http"))
-	 (path (concat "/" method "." format))
-	 (url (format "%s://%s%s" scheme host path))
+	 (path (if (stringp method)
+		   (concat "/" method "." format)
+		 (mapcar (lambda (m) (concat "/" m "." format)) method)))
+	 (url (if (stringp path)
+		  (format "%s://%s%s" scheme host path)
+		(mapcar (lambda (p)
+			  (format "%s://%s%s" scheme host p))
+			path)))
 	 (headers
-	  (twittering-http-application-headers-with-auth
-	   "GET" url parameters)))
+	  (if (stringp url)
+	      (twittering-http-application-headers-with-auth
+	       "GET" url parameters)
+	    (mapcar (lambda (u)
+		      (twittering-http-application-headers-with-auth
+		       "GET" u parameters))
+		    url))))
     (twittering-start-http-session
      "GET" headers host nil path parameters noninteractive sentinel)))
 
@@ -4967,9 +5018,8 @@ QUERY-PARAMETERS is a list of cons pair of name and value such as
 	    (when (and new-statuses buffer)
 	      (twittering-render-timeline buffer t new-statuses t))
 	    (twittering-add-timeline-history spec-string)))
-	(if twittering-notify-successful-http-get
-	    (if suc-msg suc-msg (format "Success: Get %s." spec-string))
-	  nil)))
+	(when twittering-notify-successful-http-get
+	  (if suc-msg suc-msg (format "Success: Get %s." spec-string)))))
      (t
       (let ((error-mes (twittering-get-error-message (process-buffer proc))))
 	(if error-mes
@@ -5091,12 +5141,26 @@ Return nil when parse failed.
 
 SPEC is timeline-spec which was used to retrieve BUFFER.
 BUFFER may be a buffer or the name of an existing buffer."
-  (let ((body
-	 (twittering-get-response-body buffer 'twittering-xml-parse-region)))
-    (when body
-      (if (eq 'search (car spec))
-	  (twittering-atom-xmltree-to-status body)
-	(twittering-xmltree-to-status body)))))
+  (if (eq 'merge (car spec))
+      (with-current-buffer buffer
+	(goto-char (point-min))
+	(apply 'append			; TODO, sort statuses
+	       (mapcar 
+		(lambda (sp)
+		  (let ((start (point)))
+		    (goto-char (line-end-position)) 
+		    (if (re-search-forward "^HTTP/" nil t 1)
+			(narrow-to-region start (match-beginning 0))
+		      (narrow-to-region start (point-max))))
+		  (prog1 (twittering-get-status-from-http-response sp buffer)
+		    (widen)))
+		(cdr spec))))
+    (let ((body
+	   (twittering-get-response-body buffer 'twittering-xml-parse-region)))
+      (when body
+	(if (eq 'search (car spec))
+	    (twittering-atom-xmltree-to-status body)
+	  (twittering-xmltree-to-status body))))))
 
 (defun twittering-atom-xmltree-to-status-datum (atom-xml-entry)
   (let ((id-str (car (cddr (assq 'id atom-xml-entry))))
