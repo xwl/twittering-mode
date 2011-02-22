@@ -1,4 +1,13 @@
 
+(when (and (> 22 emacs-major-version)
+	   (require 'url-methods nil t))
+  ;; `twittering-make-http-request-from-uri', which is called for the format
+  ;; specifier "%i", requires `url-generic-parse-url'. But the function for
+  ;; Emacs 21, which is distributed with twittering-mode, does not work
+  ;; correctly until calling `url-scheme-get-property'.
+  (url-scheme-get-property "http" 'name)
+  (url-scheme-get-property "https" 'name))
+
 (defcase test-version nil nil
   (test-assert-string-match "^twittering-mode-v\\([0-9]+\\(\\.[0-9]+\\)*\\|HEAD\\)"
     (twittering-mode-version)))
@@ -220,6 +229,16 @@
    (test-restore-timeline-spec
     ":retweets_of_me" '(retweets_of_me)  '(retweets_of_me))
    '(t t))
+
+  (test-assert-equal
+   (test-restore-timeline-spec
+    ":favorites" '(favorites) '(favorites))
+   '(t t))
+
+  (test-assert-equal
+   (test-restore-timeline-spec
+    ":favorites/USER" '(favorites "USER") '(favorites "USER"))
+   '(t t))
   )
 
 (defun format-status (status format-str)
@@ -257,7 +276,7 @@
 
     (test-assert-string-equal "GNU project"
       (format-status status "%l"))
-    (test-assert-string-equal "[GNU project]"
+    (test-assert-string-equal " [GNU project]"
       (format-status status "%L"))
     (setcdr (assoc 'user-location status) "")
     (test-assert-string-equal ""
@@ -334,6 +353,38 @@
      (let ((twittering-icon-mode t)
 	   (window-system t))
        (format-status status "%i %s,  :\n  %T // from %f%L%r")))
+
+    (test-assert-string-equal
+     "
+  Help protect and support Free Software and the GNU Project by joining the
+  Free Software Foundation! http://www.fsf.org/join?referrer=7019 // from web"
+     (let ((twittering-fill-column 80))
+       (format-status status "\n%FILL[  ]{%T // from %f%L%r}")))
+
+    (test-assert-string-equal
+     "
+  Help protect and support Free Software and the GNU Project by joining the
+  Free Software Foundation! http://www.fsf.org/join?referrer=7019 // from web"
+     (let ((twittering-fill-column 80))
+       (format-status status "\n%FOLD[  ]{%T // from %f%L%r}")))
+
+    (test-assert-string-equal
+     "
+  Edit XHTML5 documents in nxml-mode with on-the-fly validation:
+  http://bit.ly/lYnEg (by @hober) // from web"
+     (let ((twittering-fill-column 80)
+	   (oldest-status (car (last (get-fixture 'timeline-data)))))
+       (format-status oldest-status "\n%FILL[  ]{%T // from %f%L%r}")))
+
+    (test-assert-string-equal
+     "
+--Edit XHTML5 documents in nxml-mode with on-the-fly validation:
+--http://bit.ly/lYnEg
+--			     
+--	(by @hober) // from web"
+     (let ((twittering-fill-column 80)
+	   (oldest-status (car (last (get-fixture 'timeline-data)))))
+       (format-status oldest-status "\n%FOLD[--]{%T // from %f%L%r}")))
     ))
 
 (defcase test-find-curl-program nil nil
@@ -371,9 +422,9 @@
   )
 
 (defcase test-hmac-sha1 nil nil
-  ;; The following tests are copied from RFC 2022.
+  ;; The following tests are copied from RFC 2202.
   (test-assert-string-equal
-   (let* ((v (make-vector 20 ?\x0b))
+   (let* ((v (make-list 20 ?\x0b))
 	  (key (cond
 		((fboundp 'unibyte-string) (apply 'unibyte-string v))
 		(t (concat v))))
@@ -392,11 +443,11 @@
    "effcdf6ae5eb2fa2d27416d5f184df9c259a7c79")
 
   (test-assert-string-equal
-   (let* ((key-v (make-vector 20 ?\xaa))
+   (let* ((key-v (make-list 20 ?\xaa))
 	  (key (cond
 		((fboundp 'unibyte-string) (apply 'unibyte-string key-v))
 		(t (concat key-v))))
-	  (data-v (make-vector 50 ?\xdd))
+	  (data-v (make-list 50 ?\xdd))
 	  (data (cond
 		 ((fboundp 'unibyte-string) (apply 'unibyte-string data-v))
 		 (t (concat data-v)))))
