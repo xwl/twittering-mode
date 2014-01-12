@@ -1788,6 +1788,7 @@ the status be shown. ")
 (defun twittering-timeline-data-collect (&optional spec timeline-data)
   "Collect visible statuses for `twittering-render-timeline'."
   (let* ((spec (or spec (twittering-current-timeline-spec)))
+         (service (twittering-extract-service spec))
          (referring-id-table
           (twittering-current-timeline-referring-id-table spec))
          (timeline-data
@@ -1807,7 +1808,12 @@ the status be shown. ")
                          (eq (twittering-extract-service spec) 'sina))
                      (or (not twittering-status-filter)
                          (funcall twittering-status-filter status))
-                     (not (assqref 'twittering-reply? status)))
+                     (not (assqref 'twittering-reply? status))
+                     ;; filter sina ad tweet
+                     (not (and (eq service 'sina)
+                               (twittering-timeline-spec-user-p spec)
+                               (not (member (assqref 'screen-name (assqref 'user status))
+                                            (twittering-friends))))))
             status)))
       timeline-data))))
 
@@ -3676,7 +3682,8 @@ However, QUOTO has no effect on sina weibo.  "
 Non-nil optional REMOVE will do the opposite, unfollow. "
   (interactive "P")
   (let ((user-or-list (twittering-read-username-with-completion
-                       "who: " "" 'twittering-user-history))
+                       (concat (if remove "Unfollow" "Follow") " who: ")
+                       "" 'twittering-user-history))
         prompt-format method args)
     (when (string= "" user-or-list)
       (error "No user or list selected"))
