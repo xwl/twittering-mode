@@ -605,7 +605,7 @@ do not display unread notifier on mode line.")
            "://api.weibo.com/oauth2/authorize")
           (oauth-access-token-url-without-scheme
            "://api.weibo.com/oauth2/access_token")
-          
+
           (oauth-consumer-key
            ,(base64-decode-string "MTg4MjM3MzM0NQ=="))
           (oauth-consumer-secret
@@ -3070,7 +3070,7 @@ the server when the HTTP status code equals to 400 or 403."
                 ;; (twittering-oauth2-force-verify-credentials)
               (format "Response from `%s': %s" spec-string error-msg)))))))
           ;; (setq twittering-oauth2-wait-user-for-reverifying nil)))))))
-      
+
 (defun twittering-http-post (host method &optional parameters additional-info sentinel clean-up-sentinel)
   "Send HTTP POST request to api.twitter.com (or search.twitter.com)
 HOST is hostname of remote side, api.twitter.com (or search.twitter.com).
@@ -3096,14 +3096,14 @@ PARAMETERS is alist of URI parameters.
          (request
           (if (not (equal (twittering-get-accounts-internal 'oauth) 1.0))
               (twittering-make-http-request "POST" nil host nil path
-                                            (unless (eq (twittering-extract-service) 'douban) 
+                                            (unless (eq (twittering-extract-service) 'douban)
                                               `(,@parameters ,(assoc "access_token" (twittering-lookup-oauth-access-token-alist)))
                                               )
                                             post-body
                                             (twittering-get-accounts 'ssl))
             (twittering-add-application-header-to-http-request
              (twittering-make-http-request "POST" nil host nil path
-                                           (unless (eq (twittering-extract-service) 'douban) 
+                                           (unless (eq (twittering-extract-service) 'douban)
                                              parameters)
                                            post-body
                                            (twittering-get-accounts 'ssl))))))
@@ -4345,7 +4345,7 @@ following symbols;
         (if (or (string-match
                  (regexp-opt
                   `(,(replace-regexp-in-string
-                      (format "^RT @%s: \\|[.[:blank:]]+$"
+                      (format "^RT @%s: \\|[.[:blank:]…]+$"
                               (assqref 'screen-name (assqref 'user quoted-status)))
                       ""
                       text)))
@@ -5072,7 +5072,7 @@ rendered at POS, return nil."
                ;; Always insert most adjacent tweet first.
                (if prev-p
                    timeline-data                  ; sorted decreasingly
-                 (reverse timeline-data)))))))))) ; sorted increasingly            
+                 (reverse timeline-data)))))))))) ; sorted increasingly
 
 ;; TODO: this is assuming the user has at least one tweet.
 (defun twittering-render-user-profile (timeline-data)
@@ -6386,7 +6386,7 @@ block-and-report-as-spammer -- Block a user and report him or her as a spammer.
                                (twittering-api-path method)
                                parameters
                                additional-info)))
-      
+
       ;; Account Resources
       ((verify-credentials)
        (let ((clean-up-sentinel (assqref 'clean-up-sentinel args-alist)))
@@ -6924,7 +6924,7 @@ string.")
                (setq detail (assqref 'summary json)))
               ((event)
                (setq detail
-                     (apply 'format "时间：%s ~ %s\n地点：%s\n参数人数：%s"
+                     (apply 'format "时间：%s ~ %s\n 地点：%s\n 参数人数：%s"
                             `(,@(mapcar (lambda (i)
                                           (format-time-string
                                            "%Y-%m-%d %H:%M"
@@ -6944,7 +6944,7 @@ string.")
                                               db:attribute)
                                " / "))))
                  (setq detail
-                       (format "片名：%s\n评分：%s\n导演：%s\n主演：%s\n上映日期：%s"
+                       (format "片名：%s\n 评分：%s\n 导演：%s\n 主演：%s\n 上映日期：%s"
                                (assqref 'title db:attribute)
                                (twittering-make-rating-string (nth 1 (assqref 'gd:rating json)))
                                (funcall take 'director)
@@ -7203,7 +7203,7 @@ If nil, read it from the minibuffer."
          (scheme (if (twittering-get-accounts 'ssl) "https" "http")))
     (if (not (equal (twittering-get-accounts-internal 'oauth) 1.0))
         (progn
-          (setq scheme "https")         ; oauth 2.0 requirement.  
+          (setq scheme "https")         ; oauth 2.0 requirement.
           (when (or (assocref "access_token" (twittering-lookup-oauth-access-token-alist))
                     (let ((token (oauth2-auth-and-store
                                   (concat scheme (twittering-lookup-service-method-table
@@ -9208,7 +9208,7 @@ Duplicated elements should not exist in STR-LIST."
 The zebra face is decided by looking at adjacent face. "
   (let ((other-faces (get-text-property (point) 'face))
         start end zebra-face)
-    
+
     ;; check previous face in the buffer
     (when (and face1 face2)
       (setq start (point))
@@ -9225,7 +9225,7 @@ The zebra face is decided by looking at adjacent face. "
              ((memq face2 faces)
               (setq zebra-face face1
                     start nil)))))))
-    
+
     (unless zebra-face (setq zebra-face face1))
     (when (and zebra-face (atom zebra-face))
       (setq zebra-face `(,zebra-face)))
@@ -10268,11 +10268,11 @@ A4GBAFjOKer89961zgK5F7WF0bnj4JXMJTENAKaSbn+2kmOeUJXRmm/kEd5jhW6Y
                   ,(assq 'favorited-time fav)
                   ,(assq 'tags fav)))
               (assqref 'favorites statuses)))
-     
+
      ((funcall has 'comments)
       (assqref 'comments statuses))
 
-     ((funcall has 'statuses)          
+     ((funcall has 'statuses)
       (assqref 'statuses statuses))
 
      (t
