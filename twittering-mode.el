@@ -2626,6 +2626,8 @@ The method to perform the request is determined from
             (switch-to-buffer buffer))
           (let ((status
                  (apply 'call-process twittering-curl-program nil t nil curl-args)))
+            (unless (eq status 0)
+              (message "curl error: %d" status))
             (when sentinel
               (funcall sentinel nil status))))
       (setq proc (apply 'start-process name buffer
@@ -8937,7 +8939,7 @@ means the number of statuses retrieved after the last visiting of the buffer.")
   (add-hook 'post-command-hook
             'twittering-reset-unread-status-info-if-necessary)
   (add-to-list 'global-mode-string
-               '(:eval (twittering-make-unread-status-notifier-string))
+               '(:eval (concat " " (twittering-make-unread-status-notifier-string)))
                t))
 
 (defun twittering-disable-unread-status-notifier ()
