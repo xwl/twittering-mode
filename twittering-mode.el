@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 2007, 2009, 2010 Yuto Hayamizu.
 ;;               2008 Tsuyoshi CHO
-;;               2010, 2011, 2012 William Xu
+;;               2010, 2011, 2012, 2013, 2014, 2015 William Xu
 
 ;; Author: Y. Hayamizu <y.hayamizu@gmail.com>
 ;;         Tsuyoshi CHO <Tsuyoshi.CHO+develop@Gmail.com>
@@ -3186,7 +3186,7 @@ PARAMETERS is alist of URI parameters.
 (defun twittering-set-current-hashtag (&optional tag)
   (interactive)
   (unless tag
-    (setq tag (twittering-completing-read "hashtag (blank to clear): #"
+    (setq tag (completing-read "hashtag (blank to clear): #"
                                           twittering-hashtag-history
                                           nil nil
                                           twittering-current-hashtag
@@ -3421,7 +3421,7 @@ However, QUOTO has no effect on sina weibo.  "
     (when (memq (twittering-extract-service) '(sina socialcast douban))
       (when quoted-status
         (setq username
-              (ido-completing-read
+              (completing-read
                "Reply to: "
                `(,(assqref 'name (assqref 'user status))
                  ,(assqref 'name (assqref 'user quoted-status)))))
@@ -3467,7 +3467,7 @@ However, QUOTO has no effect on sina weibo.  "
     (when (memq (twittering-extract-service) '(sina socialcast douban))
       (when quoted-status
         (setq username
-              (ido-completing-read
+              (completing-read
                "Reply to: "
                `(,(assqref 'name (assqref 'user status))
                  ,(assqref 'name (assqref 'user quoted-status)))))
@@ -3539,7 +3539,7 @@ However, QUOTO has no effect on sina weibo.  "
     (when ask
       (setq service
             (intern
-             (ido-completing-read
+             (completing-read
               "Post to: "
               `(,@(mapcar 'symbol-name twittering-enabled-services) "all")))))
     (mapc (lambda (s)
@@ -3797,7 +3797,7 @@ browser right away."
                     (cdr (assq 'retweeted-user-screen-name status)))
                    (prompt "Who do you block? ")
                    (candidates (list retweeted-username retweeting-username)))
-              (twittering-completing-read prompt candidates nil t)))
+              (completing-read prompt candidates nil t)))
            (status
             (assqref 'screen-name (assqref 'user status)))
            (t
@@ -3825,7 +3825,7 @@ The user is also blocked."
                     (cdr (assq 'retweeted-user-screen-name status)))
                    (prompt "Who do you report as a spammer? ")
                    (candidates (list retweeted-username retweeting-username)))
-              (twittering-completing-read prompt candidates nil t)))
+              (completing-read prompt candidates nil t)))
            (status
             (assqref 'screen-name (assqref 'user status)))
            (t
@@ -8258,7 +8258,7 @@ image are displayed."
      (unless twittering-is-getting-emotions-p
        (setq twittering-is-getting-emotions-p t)
        (twittering-get-simple nil nil nil 'emotions))
-     `(,(ido-completing-read
+     `(,(completing-read
          "Select emotion: "
          (mapcar (lambda (e)
                    (apply 'propertize
@@ -9170,22 +9170,6 @@ defined in Emacs21."
         (setq rest (cdr rest)))
       (nreverse result))))
 
-(defun twittering-completing-read (prompt collection &optional predicate require-match initial-input hist def inherit-input-method)
-  "Read a string in the minibuffer, with completion.
-This is a modified version of `completing-read' and accepts candidates
-as a list of a string on Emacs21."
-  ;; completing-read() of Emacs21 does not accepts candidates as
-  ;; a list. Candidates must be given as an alist.
-  (let* ((collection (twittering-remove-duplicates collection))
-         (collection
-          (if (and (> 22 emacs-major-version)
-                   (listp collection)
-                   (stringp (car collection)))
-              (mapcar (lambda (x) (cons x nil)) collection)
-            collection)))
-    (completing-read prompt collection predicate require-match
-                     initial-input hist def inherit-input-method)))
-
 (defun twittering-add-to-history (history-var elt &optional maxelt keep-all)
   (if (functionp 'add-to-history)
       (add-to-history history-var elt maxelt keep-all)
@@ -9902,7 +9886,7 @@ A4GBAFjOKer89961zgK5F7WF0bnj4JXMJTENAKaSbn+2kmOeUJXRmm/kEd5jhW6Y
   (let ((collection (append (twittering-get-all-usernames-at-pos)
                             twittering-user-history
                             (twittering-get-usernames-from-timeline))))
-    (twittering-completing-read prompt collection nil nil init-user history)))
+    (completing-read prompt collection nil nil init-user history)))
 
 (defun twittering-read-list-name (username &optional list-index)
   (let* ((list-index (or list-index
@@ -9913,7 +9897,7 @@ A4GBAFjOKer89961zgK5F7WF0bnj4JXMJTENAKaSbn+2kmOeUJXRmm/kEd5jhW6Y
          (prompt (format "%s's list: " username))
          (listname
           (if list-index
-              (twittering-completing-read
+              (completing-read
                prompt
                (mapcar
                 (lambda (l) (car (last (twittering-string-to-timeline-spec l))))
@@ -9940,7 +9924,7 @@ A4GBAFjOKer89961zgK5F7WF0bnj4JXMJTENAKaSbn+2kmOeUJXRmm/kEd5jhW6Y
             (mapcar (lambda (tl) (concat (twittering-get-accounts 'username) "/" tl))
                     '("followers" "following" "favorites"))
             )))
-         (spec-string (twittering-completing-read
+         (spec-string (completing-read
                        prompt dummy-hist nil nil initial 'dummy-hist))
          (spec-string
           (cond
