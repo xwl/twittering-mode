@@ -8115,12 +8115,18 @@ available and `twittering-use-convert' is non-nil."
     (puthash image-url spec hash)))
 
 (defun twittering-register-image-data (image-url image-data &optional size)
-  (let ((image-pair (twittering-create-image-pair image-data))
-        (size (or size twittering-convert-fix-size)))
-    (when image-pair
-      (let ((spec (twittering-make-display-spec-for-icon image-pair)))
-        (twittering-register-image-spec image-url spec size)
-        spec))))
+  (let ((size (or size twittering-convert-fix-size)))
+    (if (string-match "www.instagram.com" image-url)
+        (if (string-match "property=\"og:image\" content=\"\\(.+\\)\"" image-data)
+            (let ((new-image-url (match-string 1 image-data)))
+              (twittering-register-image-spec image-url (cons 'instagram new-image-url) size))
+          (message "unknow instagram url: %s" image-url))
+      (let ((image-pair (twittering-create-image-pair image-data))
+            (size (or size twittering-convert-fix-size)))
+        (when image-pair
+          (let ((spec (twittering-make-display-spec-for-icon image-pair)))
+            (twittering-register-image-spec image-url spec size)
+            spec))))))
 
 (defun twittering-make-slice-spec (image-spec)
   "Return slice property for reducing the image size by cropping it."
@@ -8167,9 +8173,20 @@ image are displayed."
   (let ((display-spec (twittering-get-display-spec-for-icon image-url))
         (image-data (gethash image-url twittering-url-data-hash))
         (properties (and beg (text-properties-at beg)))
-        (icon-string (copy-sequence twittering-need-to-be-updated-indicator)))
+        (icon-string (copy-sequence twittering-need-to-be-updated-indicator))
+        (resize-size nil))
+
+    (when (and display-spec
+               (listp display-spec)
+               (eq (car display-spec) 'instagram))
+      (setq image-url (cdr display-spec)
+            resize-size 150
+            display-spec nil
+            image-data nil))
+
     (when properties
       (add-text-properties 0 (length icon-string) properties icon-string))
+
     (cond
      (display-spec
       (if (cadr display-spec)
@@ -8181,35 +8198,38 @@ image are displayed."
                                     icon-string)
             icon-string)
         ""))
+
      ((and (integerp image-data)
            (<= twittering-url-request-retry-limit image-data))
       ;; Try to retrieve the image no longer.
       (twittering-register-image-data image-url nil)
       (twittering-make-icon-string beg end image-url))
+
      ((and image-data (not (integerp image-data)))
       (twittering-register-image-data image-url image-data)
       (twittering-make-icon-string beg end image-url))
+
      (t
-      (put-text-property 0 (length icon-string)
-                         'need-to-be-updated
-                         `((lambda (&rest args)
-                             (let ((twittering-convert-fix-size
-                                    ,twittering-convert-fix-size))
-                               (apply 'twittering-make-icon-string
-                                      (append args (list ,image-url))))))
-                         icon-string)
-      (if sync
-          (progn
-            (twittering-register-image-data
-             image-url (string-as-unibyte
-                        (twittering-url-retrieve-synchronously image-url)))
-            (twittering-make-icon-string beg end image-url sync))
-        (twittering-url-retrieve-async
-         image-url
-         `(lambda (&rest args)
-            (let ((twittering-convert-fix-size ,twittering-convert-fix-size))
-              (apply 'twittering-register-image-data args))))
-        icon-string)))))
+      (let ((size (or resize-size twittering-convert-fix-size)))
+        (put-text-property 0 (length icon-string)
+                           'need-to-be-updated
+                           `((lambda (&rest args)
+                               (let ((twittering-convert-fix-size ,size))
+                                 (apply 'twittering-make-icon-string
+                                        (append args (list ,image-url))))))
+                           icon-string)
+        (if sync
+            (progn
+              (twittering-register-image-data
+               image-url (string-as-unibyte
+                          (twittering-url-retrieve-synchronously image-url)))
+              (twittering-make-icon-string beg end image-url sync))
+          (twittering-url-retrieve-async
+           image-url
+           `(lambda (&rest args)
+              (let ((twittering-convert-fix-size ,size))
+                (apply 'twittering-register-image-data args))))
+          icon-string))))))
 
 (defun twittering-make-original-icon-string (beg end image-url &optional sync)
   (let ((twittering-convert-fix-size nil))
@@ -10278,7 +10298,32 @@ A4GBAFjOKer89961zgK5F7WF0bnj4JXMJTENAKaSbn+2kmOeUJXRmm/kEd5jhW6Y
       (assqref 'statuses statuses))
 
      (t
-      statuses))))
+      (setq statuses
+            (mapcar (lambda (status)
+                      (setq status (twittering-add-thumbnail-pic-to-status status))
+                      (let ((rt (ignore-errors (twittering-is-retweet? status))))
+                        (when rt
+                          (let ((value (cdr rt)))
+                            (setcdr rt (twittering-add-thumbnail-pic-to-status value)))))
+                      status)
+                    statuses))))))
+
+(defun twittering-add-thumbnail-pic-to-status (status)
+  ;; twitter images: https://dev.twitter.com/overview/api/entities-in-twitter-objects
+  (let* ((url (ignore-errors (assqref 'media-url (car (assqref 'media (assqref 'entities status))))))
+         (pics nil))
+    (if url
+        (setq pics `((thumbnail-pic . ,(concat url ":thumb"))
+                     (original-pic . ,url)))
+      ;; instagram image
+      (setq url (ignore-errors (assqref 'expanded-url (car (assqref 'urls (assqref 'entities status))))))
+      (when (and url (string-match "www.instagram.com" url))
+        (setq pics `((thumbnail-pic . ,url)
+                     (original-pic . ,url)))))
+
+    (if pics
+        (append status pics)
+      status)))
 
 ;;;;
 ;;;; Buffer info
