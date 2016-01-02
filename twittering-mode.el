@@ -40,7 +40,7 @@
 
 ;;; Code:
 
-(eval-when-compile (require 'cl))
+(require 'cl)
 (require 'json)
 (require 'parse-time)
 (when (> 22 emacs-major-version)
@@ -106,7 +106,7 @@ call is limited by the hour."
   :group 'twittering)
 
 (defcustom twittering-status-format
-  "%FACE[twittering-zebra-1-face,twittering-zebra-2-face]{%i %g %s, from %f%L%r%R:\n%FOLD[       ]{%t}\n}"
+  "%FACE[twittering-zebra-1-face,twittering-zebra-2-face]{%i %g %s, from %f%L%r%R:\n%FOLD[        ]{%t}\n}"
   "Format string for rendering statuses.
 Ex. \"%i %s,  %@:\\n%FILL{  %t // from %f%L%r%R}\n \"
 
@@ -1708,7 +1708,7 @@ Statuses are stored in ascending-order with respect to their IDs."
                          (setq pos (next-single-property-change
                                     pos 'need-to-be-updated nil end)))
                (goto-char pos)
-               (when (looking-at "轉發.* 評論(\\([0-9]+\\))")
+               (when (looking-at "转发.* 评论(\\([0-9]+\\))")
                  (setq has? (match-string 1)))
                (when (eq pos end)
                  (setq pos nil))))
@@ -6650,8 +6650,8 @@ string.")
                (puthash `(,username ,method) (remove-if pred retrieved)
                         twittering-simple-hash)
                (setq s (concat
-                        (format "轉發%s " rt-str)
-                        (propertize (format "評論%s" cm-str)
+                        (format "转发%s " rt-str)
+                        (propertize (format "评论%s" cm-str)
                                     'mouse-face 'highlight
                                     'face 'twittering-uri-face
                                     'keymap twittering-mode-on-uri-map
