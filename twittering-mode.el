@@ -280,7 +280,7 @@ Don't use it together with http proxy.  "
   :type 'list
   :group 'twittering)
 
-(defcustom twittering-auto-adjust-fill-column? t
+(defcustom twittering-auto-adjust-fill-column? nil
   "If t, adjust `twittering-fill-column' and `twittering-my-fill-column'
 automatically when window resizes.  "
   :type 'boolean
